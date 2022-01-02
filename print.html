@@ -321,7 +321,7 @@ where D: AppData
 <span class="boring">}
 </span></code></pre></pre>
 <p>A mock impl in our tests explains what the impl has to do:
-https://github.com/datafuselabs/openraft/blob/main/async-raft/tests/fixtures/mod.rs</p>
+<a href="https://github.com/datafuselabs/openraft/blob/main/async-raft/tests/fixtures/mod.rs">fixture: mock impl RaftNetwork</a></p>
 <p>As a real world impl, you may want to use <a href="https://github.com/hyperium/tonic">Tonic gRPC</a>.
 <a href="https://github.com/datafuselabs/databend/blob/6603392a958ba8593b1f4b01410bebedd484c6a9/metasrv/src/network.rs#L89">databend-meta</a> would be a nice real world example.</p>
 <h2 id="put-everything-together"><a class="header" href="#put-everything-together">Put everything together</a></h2>
@@ -410,7 +410,7 @@ async fn main() {
 </code></pre></pre>
 <p>Now it is time to write something to the cluster.
 As we did in our tests with <code>Raft::client_write()</code>:
-https://github.com/datafuselabs/openraft/blob/main/async-raft/tests/client_writes.rs</p>
+<a href="https://github.com/datafuselabs/openraft/blob/main/async-raft/tests/client_writes.rs">client_writes</a></p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="cluster-controls"><a class="header" href="#cluster-controls">Cluster Controls</a></h1>
 <p>A raft cluster may be control in various ways using the API methods of the <code>Raft</code> type.
 This allows the application to influence the raft behavior.</p>
