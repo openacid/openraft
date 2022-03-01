@@ -18,14 +18,15 @@ use crate::raft_types::SnapshotId;
 use crate::raft_types::StateMachineChanges;
 use crate::LogId;
 use crate::LogIdOptionExt;
+use crate::NodeId;
 use crate::RaftTypeConfig;
 use crate::StorageError;
 use crate::Vote;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub struct SnapshotMeta<C: RaftTypeConfig> {
+pub struct SnapshotMeta<NID: NodeId> {
     // Log entries upto which this snapshot includes, inclusive.
-    pub last_log_id: LogId<C::NodeId>,
+    pub last_log_id: LogId<NID>,
 
     /// To identify a snapshot when transferring.
     /// Caveat: even when two snapshot is built with the same `last_log_id`, they still could be different in bytes.

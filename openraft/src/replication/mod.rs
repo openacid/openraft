@@ -105,7 +105,7 @@ pub(crate) struct ReplicationStream<C: RaftTypeConfig> {
     /// The spawn handle the `ReplicationCore` task.
     // pub handle: JoinHandle<()>,
     /// The channel used for communicating with the replication task.
-    pub repl_tx: mpsc::UnboundedSender<(RaftEvent<C>, Span)>,
+    pub repl_tx: mpsc::UnboundedSender<(RaftEvent<C::NodeId>, Span)>,
 }
 
 impl<C: RaftTypeConfig> ReplicationStream<C> {
@@ -113,7 +113,7 @@ impl<C: RaftTypeConfig> ReplicationStream<C> {
     pub(crate) fn new<N: RaftNetworkFactory<C>, S: RaftStorage<C>>(
         target: C::NodeId,
         target_node: Option<Node>,
-        vote: Vote<C>,
+        vote: Vote<C::NodeId>,
         config: Arc<Config>,
         last_log: Option<LogId<C::NodeId>>,
         committed: Option<LogId<C::NodeId>>,
@@ -145,13 +145,13 @@ struct ReplicationCore<C: RaftTypeConfig, N: RaftNetworkFactory<C>, S: RaftStora
     target: C::NodeId,
 
     /// The vote of the leader.
-    vote: Vote<C>,
+    vote: Vote<C::NodeId>,
 
     /// A channel for sending events to the Raft node.
     raft_core_tx: mpsc::UnboundedSender<(ReplicaEvent<C, S::SnapshotData>, Span)>,
 
     /// A channel for receiving events from the Raft node.
-    repl_rx: mpsc::UnboundedReceiver<(RaftEvent<C>, Span)>,
+    repl_rx: mpsc::UnboundedReceiver<(RaftEvent<C::NodeId>, Span)>,
 
     /// The `RaftNetwork` interface.
     network: N::Network,
@@ -603,25 +603,25 @@ enum TargetReplState<C: RaftTypeConfig> {
 
 // TODO(xp): remove Replicate
 /// An event from the Raft node.
-pub(crate) enum RaftEvent<C: RaftTypeConfig> {
+pub(crate) enum RaftEvent<NID: NodeId> {
     Replicate {
         /// The new entry which needs to be replicated.
         ///
         /// The logId of the most recent entry to have been appended to the log, its index is the
         /// new last_log_index value.
-        appended: LogId<C::NodeId>,
+        appended: LogId<NID>,
 
         /// The index of the highest log entry which is known to be committed in the cluster.
-        committed: Option<LogId<C::NodeId>>,
+        committed: Option<LogId<NID>>,
     },
     /// A message from Raft indicating a new commit index value.
     UpdateCommittedLogId {
         /// The index of the highest log entry which is known to be committed in the cluster.
-        committed: Option<LogId<C::NodeId>>,
+        committed: Option<LogId<NID>>,
     },
 }
 
-impl<C: RaftTypeConfig> MessageSummary for RaftEvent<C> {
+impl<NID: NodeId> MessageSummary for RaftEvent<NID> {
     fn summary(&self) -> String {
         match self {
             RaftEvent::Replicate { appended, committed } => {
@@ -655,7 +655,7 @@ where
         target: C::NodeId,
 
         /// The new vote observed.
-        vote: Vote<C>,
+        vote: Vote<C::NodeId>,
     },
     /// An event from a replication stream requesting snapshot info.
     NeedsSnapshot {

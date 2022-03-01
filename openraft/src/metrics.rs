@@ -26,15 +26,16 @@ use crate::versioned::Versioned;
 use crate::LogId;
 use crate::Membership;
 use crate::MessageSummary;
+use crate::NodeId;
 use crate::RaftTypeConfig;
 
 /// A set of metrics describing the current state of a Raft node.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RaftMetrics<C: RaftTypeConfig> {
-    pub running_state: Result<(), Fatal<C>>,
+pub struct RaftMetrics<NID: NodeId> {
+    pub running_state: Result<(), Fatal<NID>>,
 
     /// The ID of the Raft node.
-    pub id: C::NodeId,
+    pub id: NID,
     /// The state of the Raft node.
     pub state: State,
     /// The current term of the Raft node.
@@ -42,21 +43,21 @@ pub struct RaftMetrics<C: RaftTypeConfig> {
     /// The last log index has been appended to this Raft node's log.
     pub last_log_index: Option<u64>,
     /// The last log index has been applied to this Raft node's state machine.
-    pub last_applied: Option<LogId<C::NodeId>>,
+    pub last_applied: Option<LogId<NID>>,
     /// The current cluster leader.
-    pub current_leader: Option<C::NodeId>,
+    pub current_leader: Option<NID>,
     /// The current membership config of the cluster.
-    pub membership_config: Arc<EffectiveMembership<C>>,
+    pub membership_config: Arc<EffectiveMembership<NID>>,
 
     /// The id of the last log included in snapshot.
     /// If there is no snapshot, it is (0,0).
-    pub snapshot: Option<LogId<C::NodeId>>,
+    pub snapshot: Option<LogId<NID>>,
 
     /// The metrics about the leader. It is Some() only when this node is leader.
     pub leader_metrics: Option<Versioned<LeaderMetrics<C::NodeId>>>,
 }
 
-impl<C: RaftTypeConfig> MessageSummary for RaftMetrics<C> {
+impl<NID: NodeId> MessageSummary for RaftMetrics<NID> {
     fn summary(&self) -> String {
         format!("Metrics{{id:{},{:?}, term:{}, last_log:{:?}, last_applied:{:?}, leader:{:?}, membership:{}, snapshot:{:?}, replication:{}",
             self.id,
@@ -103,7 +104,7 @@ pub enum WaitError {
 /// Wait is a wrapper of RaftMetrics channel that impls several utils to wait for metrics to satisfy some condition.
 pub struct Wait<C: RaftTypeConfig> {
     pub timeout: Duration,
-    pub rx: watch::Receiver<RaftMetrics<C>>,
+    pub rx: watch::Receiver<RaftMetrics<C::NodeId>>,
 }
 
 impl<C: RaftTypeConfig> Wait<C> {

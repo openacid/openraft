@@ -105,9 +105,9 @@ macro_rules! declare_raft_types {
 
 struct RaftInner<C: RaftTypeConfig, N: RaftNetworkFactory<C>, S: RaftStorage<C>> {
     tx_api: mpsc::UnboundedSender<(RaftMsg<C>, Span)>,
-    rx_metrics: watch::Receiver<RaftMetrics<C>>,
+    rx_metrics: watch::Receiver<RaftMetrics<C::NodeId>>,
     #[allow(clippy::type_complexity)]
-    raft_handle: Mutex<Option<JoinHandle<Result<(), Fatal<C>>>>>,
+    raft_handle: Mutex<Option<JoinHandle<Result<(), Fatal<C::NodeId>>>>>,
     tx_shutdown: Mutex<Option<oneshot::Sender<()>>>,
     marker_n: std::marker::PhantomData<N>,
     marker_s: std::marker::PhantomData<S>,
@@ -287,7 +287,7 @@ impl<C: RaftTypeConfig, N: RaftNetworkFactory<C>, S: RaftStorage<C>> Raft<C, N, 
     /// only its own config.
     #[tracing::instrument(level = "debug", skip(self))]
     pub async fn initialize<T>(&self, members: T) -> Result<(), InitializeError<C>>
-    where T: Into<EitherNodesOrIds<C>> + Debug {
+    where T: Into<EitherNodesOrIds<C::NodeId>> + Debug {
         let (tx, rx) = oneshot::channel();
         self.call_core(
             RaftMsg::Initialize {
@@ -408,7 +408,7 @@ impl<C: RaftTypeConfig, N: RaftNetworkFactory<C>, S: RaftStorage<C>> Raft<C, N, 
     /// Invoke RaftCore by sending a RaftMsg and blocks waiting for response.
     #[tracing::instrument(level = "debug", skip(self, mes, rx))]
     pub(crate) async fn call_core<T, E>(&self, mes: RaftMsg<C>, rx: RaftRespRx<T, E>) -> Result<T, E>
-    where E: From<Fatal<C>> {
+    where E: From<Fatal<C::NodeId>> {
         let span = tracing::Span::current();
 
         let sum = if span.is_disabled() { None } else { Some(mes.summary()) };
@@ -452,7 +452,7 @@ impl<C: RaftTypeConfig, N: RaftNetworkFactory<C>, S: RaftStorage<C>> Raft<C, N, 
     }
 
     /// Get a handle to the metrics channel.
-    pub fn metrics(&self) -> watch::Receiver<RaftMetrics<C>> {
+    pub fn metrics(&self) -> watch::Receiver<RaftMetrics<C::NodeId>> {
         self.inner.rx_metrics.clone()
     }
 
@@ -516,26 +516,26 @@ pub struct AddLearnerResponse<C: RaftTypeConfig> {
 pub(crate) enum RaftMsg<C: RaftTypeConfig> {
     AppendEntries {
         rpc: AppendEntriesRequest<C>,
-        tx: RaftRespTx<AppendEntriesResponse<C>, AppendEntriesError<C>>,
+        tx: RaftRespTx<AppendEntriesResponse<C>, AppendEntriesError<C::NodeId>>,
     },
     RequestVote {
         rpc: VoteRequest<C>,
-        tx: RaftRespTx<VoteResponse<C>, VoteError<C>>,
+        tx: RaftRespTx<VoteResponse<C>, VoteError<C::NodeId>>,
     },
     InstallSnapshot {
         rpc: InstallSnapshotRequest<C>,
-        tx: RaftRespTx<InstallSnapshotResponse<C>, InstallSnapshotError<C>>,
+        tx: RaftRespTx<InstallSnapshotResponse<C>, InstallSnapshotError<C::NodeId>>,
     },
     ClientWriteRequest {
         rpc: ClientWriteRequest<C>,
-        tx: RaftRespTx<ClientWriteResponse<C>, ClientWriteError<C>>,
+        tx: RaftRespTx<ClientWriteResponse<C>, ClientWriteError<C::NodeId>>,
     },
     CheckIsLeaderRequest {
         tx: RaftRespTx<(), CheckIsLeaderError<C>>,
     },
     Initialize {
-        members: EitherNodesOrIds<C>,
-        tx: RaftRespTx<(), InitializeError<C>>,
+        members: EitherNodesOrIds<C::NodeId>,
+        tx: RaftRespTx<(), InitializeError<C::NodeId>>,
     },
     // TODO(xp): make tx a field of a struct
     /// Request raft core to setup a new replication to a learner.
@@ -548,7 +548,7 @@ pub(crate) enum RaftMsg<C: RaftTypeConfig> {
         blocking: bool,
 
         /// Send the log id when the replication becomes line-rate.
-        tx: RaftRespTx<AddLearnerResponse<C>, AddLearnerError<C>>,
+        tx: RaftRespTx<AddLearnerResponse<C>, AddLearnerError<C::NodeId>>,
     },
     ChangeMembership {
         members: BTreeSet<C::NodeId>,
@@ -562,7 +562,7 @@ pub(crate) enum RaftMsg<C: RaftTypeConfig> {
         /// will be turned into learners, otherwise will be removed.
         turn_to_learner: bool,
 
-        tx: RaftRespTx<ClientWriteResponse<C>, ClientWriteError<C>>,
+        tx: RaftRespTx<ClientWriteResponse<C>, ClientWriteError<C::NodeId>>,
     },
 }
 
@@ -610,7 +610,7 @@ where C: RaftTypeConfig
 /// An RPC sent by a cluster leader to replicate log entries (§5.3), and as a heartbeat (§5.2).
 #[derive(Serialize, Deserialize)]
 pub struct AppendEntriesRequest<C: RaftTypeConfig> {
-    pub vote: Vote<C>,
+    pub vote: Vote<C::NodeId>,
 
     pub prev_log_id: Option<LogId<C::NodeId>>,
 
@@ -780,8 +780,7 @@ pub enum EntryPayload<C: RaftTypeConfig> {
     Normal(C::D),
 
     /// A change-membership log entry.
-    #[serde(bound = "")]
-    Membership(Membership<C>),
+    Membership(Membership<C::NodeId>),
 }
 
 impl<C: RaftTypeConfig> Clone for EntryPayload<C> {
@@ -821,7 +820,7 @@ impl<C: RaftTypeConfig> MessageSummary for EntryPayload<C> {
 /// An RPC sent by candidates to gather votes (§5.2).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VoteRequest<C: RaftTypeConfig> {
-    pub vote: Vote<C>,
+    pub vote: Vote<C::NodeId>,
     pub last_log_id: Option<LogId<C::NodeId>>,
 }
 
@@ -832,7 +831,7 @@ impl<C: RaftTypeConfig> MessageSummary for VoteRequest<C> {
 }
 
 impl<C: RaftTypeConfig> VoteRequest<C> {
-    pub fn new(vote: Vote<C>, last_log_id: Option<LogId<C::NodeId>>) -> Self {
+    pub fn new(vote: Vote<C::NodeId>, last_log_id: Option<LogId<C::NodeId>>) -> Self {
         Self { vote, last_log_id }
     }
 }
